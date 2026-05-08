@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SimOnvoPay", "SimOnvoPay\Si
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SimOnvoPay.Demo", "SimOnvoPay.Demo\SimOnvoPay.Demo.csproj", "{D22BEF9B-D542-42BB-8DC1-329A441E3ADE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SimOnvoPay.Api", "SimOnvoPay.Api\SimOnvoPay.Api.csproj", "{EE06B275-C634-43A7-88C4-EA6939F860F4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,18 @@ Global
 		{D22BEF9B-D542-42BB-8DC1-329A441E3ADE}.Release|x64.Build.0 = Release|Any CPU
 		{D22BEF9B-D542-42BB-8DC1-329A441E3ADE}.Release|x86.ActiveCfg = Release|Any CPU
 		{D22BEF9B-D542-42BB-8DC1-329A441E3ADE}.Release|x86.Build.0 = Release|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Debug|x64.Build.0 = Debug|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Debug|x86.Build.0 = Debug|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Release|x64.ActiveCfg = Release|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Release|x64.Build.0 = Release|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Release|x86.ActiveCfg = Release|Any CPU
+		{EE06B275-C634-43A7-88C4-EA6939F860F4}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
