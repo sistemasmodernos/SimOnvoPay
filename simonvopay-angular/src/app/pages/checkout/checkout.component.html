@@ -1,0 +1,220 @@
+<div class="checkout-wrapper">
+  <!-- Loading State -->
+  <div *ngIf="loading" class="state-center">
+    <mat-spinner diameter="48"></mat-spinner>
+    <p>Cargando información de pago...</p>
+  </div>
+
+  <!-- Error State (invalid session) -->
+  <div *ngIf="!loading && error && paymentState !== 'error'" class="state-center error-state">
+    <mat-icon class="error-icon">error_outline</mat-icon>
+    <h2>Sesión inválida</h2>
+    <p>{{ error }}</p>
+  </div>
+
+  <!-- Main Checkout -->
+  <div *ngIf="!loading && checkoutInfo && paymentState === 'form'" class="checkout-container">
+    <!-- Header -->
+    <div class="checkout-header">
+      <div class="brand">
+        <mat-icon>payment</mat-icon>
+        <span>Pago Seguro</span>
+      </div>
+      <div class="amount-display">
+        <span class="amount-label">Total a pagar</span>
+        <span class="amount-value">{{ formatAmount(checkoutInfo.amount, checkoutInfo.currency) }}</span>
+        <span class="amount-description">{{ checkoutInfo.description }}</span>
+      </div>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <!-- Customer Info -->
+    <div class="section">
+      <h3>Información del Pagador</h3>
+      <form [formGroup]="customerForm" class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre Completo</mat-label>
+          <input matInput formControlName="customerName" placeholder="Juan Pérez" />
+          <mat-icon matSuffix>person</mat-icon>
+          <mat-error *ngIf="customerForm.get('customerName')?.hasError('required')">Nombre requerido</mat-error>
+          <mat-error *ngIf="customerForm.get('customerName')?.hasError('minlength')">Mínimo 3 caracteres</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Correo Electrónico</mat-label>
+          <input matInput formControlName="customerEmail" placeholder="juan@ejemplo.com" type="email" />
+          <mat-icon matSuffix>email</mat-icon>
+          <mat-error *ngIf="customerForm.get('customerEmail')?.hasError('required')">Correo requerido</mat-error>
+          <mat-error *ngIf="customerForm.get('customerEmail')?.hasError('email')">Correo no válido</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Teléfono</mat-label>
+          <input matInput formControlName="customerPhone" placeholder="+50688887777" />
+          <mat-icon matSuffix>phone</mat-icon>
+          <mat-error *ngIf="customerForm.get('customerPhone')?.hasError('required')">Teléfono requerido</mat-error>
+          <mat-error *ngIf="customerForm.get('customerPhone')?.hasError('pattern')">Formato: +506XXXXXXXX</mat-error>
+        </mat-form-field>
+      </form>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <!-- Payment Method Tabs -->
+    <div class="section">
+      <h3>Método de Pago</h3>
+      <mat-tab-group [(selectedIndex)]="selectedTab" animationDuration="200ms">
+
+        <!-- Card Tab -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="tab-icon">credit_card</mat-icon>
+            Tarjeta
+          </ng-template>
+          <div class="tab-content">
+            <form [formGroup]="cardForm" class="form-grid">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Número de Tarjeta</mat-label>
+                <input matInput formControlName="number" placeholder="0000 0000 0000 0000"
+                       maxlength="19" (input)="formatCardNumber($event)" />
+                <mat-icon matSuffix>credit_card</mat-icon>
+                <mat-error *ngIf="cardForm.get('number')?.hasError('required')">Número requerido</mat-error>
+                <mat-error *ngIf="cardForm.get('number')?.hasError('pattern')">Número no válido</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Mes Vencimiento</mat-label>
+                <mat-select formControlName="expMonth">
+                  <mat-option *ngFor="let m of [1,2,3,4,5,6,7,8,9,10,11,12]" [value]="m">
+                    {{ m | number:'2.0' }}
+                  </mat-option>
+                </mat-select>
+                <mat-error>Mes requerido</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Año Vencimiento</mat-label>
+                <input matInput formControlName="expYear" type="number" placeholder="2026" />
+                <mat-error>Año requerido</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>CVV</mat-label>
+                <input matInput formControlName="cvc" maxlength="4" placeholder="123" type="password" />
+                <mat-icon matSuffix>lock</mat-icon>
+                <mat-error>CVV requerido</mat-error>
+              </mat-form-field>
+            </form>
+          </div>
+        </mat-tab>
+
+        <!-- SINPE Tab -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="tab-icon">account_balance</mat-icon>
+            SINPE
+          </ng-template>
+          <div class="tab-content">
+            <div class="sinpe-info">
+              <mat-icon>info_outline</mat-icon>
+              <span>Transferencia bancaria vía SINPE. Se procesará en horas hábiles.</span>
+            </div>
+            <form [formGroup]="sinpeForm" class="form-grid">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Número de Cuenta IBAN</mat-label>
+                <input matInput formControlName="accountNumber" placeholder="CR21010200009123456780" />
+                <mat-icon matSuffix>account_balance</mat-icon>
+                <mat-error *ngIf="sinpeForm.get('accountNumber')?.hasError('required')">IBAN requerido</mat-error>
+                <mat-error *ngIf="sinpeForm.get('accountNumber')?.hasError('pattern')">Formato: CR + 20 dígitos</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Tipo de Cuenta</mat-label>
+                <mat-select formControlName="accountType">
+                  <mat-option value="checking">Cuenta Corriente</mat-option>
+                  <mat-option value="savings">Cuenta de Ahorros</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </form>
+          </div>
+        </mat-tab>
+
+        <!-- SINPE Móvil Tab -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="tab-icon">smartphone</mat-icon>
+            SINPE Móvil
+          </ng-template>
+          <div class="tab-content">
+            <div class="sinpe-info">
+              <mat-icon>info_outline</mat-icon>
+              <span>Recibirá una notificación en su teléfono para confirmar el pago.</span>
+            </div>
+            <form [formGroup]="sinpeMovilForm" class="form-grid">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Número de Teléfono</mat-label>
+                <input matInput formControlName="phone" placeholder="+50688887777" />
+                <mat-icon matSuffix>smartphone</mat-icon>
+                <mat-error *ngIf="sinpeMovilForm.get('phone')?.hasError('required')">Teléfono requerido</mat-error>
+                <mat-error *ngIf="sinpeMovilForm.get('phone')?.hasError('pattern')">Formato: +506XXXXXXXX</mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Tipo de identificación</mat-label>
+                <mat-select formControlName="identificationType">
+                  <mat-option [value]="0">Cédula Nacional</mat-option>
+                  <mat-option [value]="1">DIMEX</mat-option>
+                  <mat-option [value]="2">DIDI</mat-option>
+                  <mat-option [value]="3">Pasaporte</mat-option>
+                  <mat-option [value]="4">Otro</mat-option>
+                  <mat-option [value]="5">Cédula Jurídica</mat-option>
+                  <mat-option [value]="9">NITE</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Número de identificación</mat-label>
+                <input matInput formControlName="identification" placeholder="123456789" />
+                <mat-error *ngIf="sinpeMovilForm.get('identification')?.hasError('required')">Identificación requerida</mat-error>
+              </mat-form-field>
+            </form>
+          </div>
+        </mat-tab>
+
+      </mat-tab-group>
+    </div>
+
+    <!-- Actions -->
+    <div class="checkout-actions">
+      <button mat-stroked-button color="warn" (click)="onCancel()">Cancelar</button>
+      <button mat-raised-button color="primary" (click)="onSubmit()" [disabled]="!isFormValid">
+        <mat-icon>lock</mat-icon>
+        Pagar {{ checkoutInfo ? formatAmount(checkoutInfo.amount, checkoutInfo.currency) : '' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Processing State -->
+  <div *ngIf="paymentState === 'processing'" class="state-center">
+    <mat-spinner diameter="64"></mat-spinner>
+    <h2>Procesando pago...</h2>
+    <p>Por favor no cierre esta ventana.</p>
+  </div>
+
+  <!-- Pending State (SINPE) -->
+  <div *ngIf="paymentState === 'pending'" class="state-center pending-state">
+    <div class="pulse-icon">
+      <mat-icon>check_circle</mat-icon>
+    </div>
+    <h2>Solicitud enviada</h2>
+    <p>{{ pendingMessage }}</p>
+    <p class="hint">Puede cerrar esta ventana. Su reservación quedará guardada y se actualizará cuando el pago sea confirmado.</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="paymentState === 'error'" class="state-center error-state">
+    <mat-icon class="error-icon">error_outline</mat-icon>
+    <h2>Error en el pago</h2>
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="paymentState = 'form'">Intentar de nuevo</button>
+  </div>
+</div>

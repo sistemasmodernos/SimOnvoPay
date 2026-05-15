@@ -1,0 +1,6 @@
+@SimOnvoPay.Api_HostAddress = http://localhost:5160
+
+GET {{SimOnvoPay.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using SimOnvoPay.Models.Common;
 
@@ -12,7 +13,7 @@ public class PaymentMethod
     public string Type { get; set; } = string.Empty;
 
     [JsonPropertyName("customer")]
-    public string? Customer { get; set; }
+    public JsonElement? Customer { get; set; }
 
     [JsonPropertyName("billingDetails")]
     public BillingDetails? BillingDetails { get; set; }
