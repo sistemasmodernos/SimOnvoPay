@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace SimOnvoPay.Models.PaymentIntents;
@@ -17,13 +18,13 @@ public class PaymentIntent
     public string Status { get; set; } = string.Empty;
 
     [JsonPropertyName("captureMethod")]
-    public string CaptureMethod { get; set; } = string.Empty;
+    public string? CaptureMethod { get; set; }
 
     [JsonPropertyName("customer")]
-    public string? Customer { get; set; }
+    public JsonElement? Customer { get; set; }
 
     [JsonPropertyName("paymentMethod")]
-    public string? PaymentMethod { get; set; }
+    public JsonElement? PaymentMethod { get; set; }
 
     [JsonPropertyName("description")]
     public string? Description { get; set; }
@@ -38,7 +39,7 @@ public class PaymentIntent
     public string? ReturnUrl { get; set; }
 
     [JsonPropertyName("nextAction")]
-    public NextAction? NextAction { get; set; }
+    public JsonElement? NextAction { get; set; }
 
     [JsonPropertyName("metadata")]
     public Dictionary<string, string>? Metadata { get; set; }
@@ -59,11 +60,3 @@ public class PaymentIntent
     public string? OnBehalfOf { get; set; }
 }
 
-public class NextAction
-{
-    [JsonPropertyName("type")]
-    public string Type { get; set; } = string.Empty;
-
-    [JsonPropertyName("redirectUrl")]
-    public string? RedirectUrl { get; set; }
-}

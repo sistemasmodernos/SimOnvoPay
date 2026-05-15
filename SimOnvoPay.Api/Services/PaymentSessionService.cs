@@ -1,9 +1,12 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using SimOnvoPay.Api.Data;
 using SimOnvoPay.Api.DTOs;
+using SimOnvoPay.Api.Helpers;
 using SimOnvoPay.Api.Models;
 using SimOnvoPay.Models.Customers;
 using SimOnvoPay.Models.PaymentIntents;
@@ -15,6 +18,8 @@ public class PaymentSessionService(
     AppDbContext db,
     OnvoPayClient onvo,
     ICallbackService callbackService,
+    IConfiguration config,
+    IMemoryCache cache,
     ILogger<PaymentSessionService> logger) : IPaymentSessionService
 {
     public async Task<CreateSessionResponse> CreateSessionAsync(CreateSessionRequest request, string frontendBaseUrl)
@@ -49,10 +54,13 @@ public class PaymentSessionService(
         var session = await db.PaymentSessions.FirstOrDefaultAsync(s => s.Token == token);
         if (session is null) return null;
 
-        if (session.Status == PaymentSessionStatus.Pending && session.ExpiresAt < DateTime.UtcNow)
+        if (session.Status == PaymentSessionStatus.Pending && session.ExpiresAt < CrDateTime.Now)
         {
             session.Status = PaymentSessionStatus.Expired;
+            session.CompletedAt = CrDateTime.Now;
+            session.UpdatedAt = CrDateTime.Now;
             await db.SaveChangesAsync();
+            _ = callbackService.NotifyAsync(session);
         }
 
         return new CheckoutInfoResponse
@@ -62,7 +70,8 @@ public class PaymentSessionService(
             Currency = session.Currency,
             Description = session.Description,
             Status = session.Status.ToString().ToLowerInvariant(),
-            ExpiresAt = session.ExpiresAt
+            ExpiresAt = session.ExpiresAt,
+            Metadata = DeserializeMetadata(session.MetadataJson)
         };
     }
 
@@ -72,7 +81,7 @@ public class PaymentSessionService(
         if (session is null)
             return Fail("Sesión de pago no encontrada.");
 
-        if (session.ExpiresAt < DateTime.UtcNow)
+        if (session.ExpiresAt < CrDateTime.Now)
             return Fail("La sesión de pago ha expirado.");
 
         if (session.Status != PaymentSessionStatus.Pending)
@@ -80,7 +89,7 @@ public class PaymentSessionService(
 
         session.Status = PaymentSessionStatus.Processing;
         session.PaymentMethodType = request.PaymentMethod;
-        session.UpdatedAt = DateTime.UtcNow;
+        session.UpdatedAt = CrDateTime.Now;
         await db.SaveChangesAsync();
 
         try
@@ -100,16 +109,12 @@ public class PaymentSessionService(
             session.OnvoPaymentMethodId = paymentMethod.Id;
             await db.SaveChangesAsync();
 
-            // 3. Crear y confirmar intención de pago
+            // 3. Crear intención de pago
             var intentRequest = new CreatePaymentIntentRequest
             {
                 Amount = session.Amount,
                 Currency = session.Currency,
                 Description = session.Description,
-                Customer = customer.Id,
-                PaymentMethod = paymentMethod.Id,
-                ReceiptEmail = request.CustomerEmail,
-                Confirm = true,
                 Metadata = DeserializeMetadata(session.MetadataJson)
             };
 
@@ -117,16 +122,31 @@ public class PaymentSessionService(
             session.OnvoPaymentIntentId = intent.Id;
             await db.SaveChangesAsync();
 
-            // 4. Evaluar resultado
-            return await HandleIntentStatusAsync(session, intent.Status, intent.NextAction?.RedirectUrl);
+            // 4. Confirmar intención con el método de pago
+            var frontendUrl = config["AppSettings:FrontendUrl"]?.TrimEnd('/') ?? "";
+            var returnUrl = $"{frontendUrl}/checkout/{session.Token}";
+            var isPublicUrl = returnUrl.StartsWith("https://") &&
+                              !returnUrl.Contains("localhost") &&
+                              !returnUrl.Contains("127.0.0.1");
+            var confirmed = await onvo.PaymentIntents.ConfirmAsync(intent.Id, new ConfirmPaymentIntentRequest
+            {
+                PaymentMethodId = paymentMethod.Id,
+                ReturnUrl = isPublicUrl ? returnUrl : null
+            });
+
+            // 5. Evaluar resultado
+            var redirectUrl = ExtractRedirectUrl(confirmed.NextAction);
+            logger.LogInformation("Intent {Id} status={Status} nextAction={NextAction} redirectUrl={RedirectUrl}",
+                confirmed.Id, confirmed.Status, confirmed.NextAction?.ToString(), redirectUrl);
+            return await HandleIntentStatusAsync(session, confirmed.Status, redirectUrl);
         }
         catch (SimOnvoPay.Exceptions.OnvoPayException ex)
         {
             logger.LogError(ex, "Error OnvoPay al procesar sesión {Token}", token);
             session.Status = PaymentSessionStatus.Failed;
             session.ErrorMessage = ex.ApiMessage ?? ex.Message;
-            session.CompletedAt = DateTime.UtcNow;
-            session.UpdatedAt = DateTime.UtcNow;
+            session.CompletedAt = CrDateTime.Now;
+            session.UpdatedAt = CrDateTime.Now;
             await db.SaveChangesAsync();
             _ = callbackService.NotifyAsync(session);
             return Fail(session.ErrorMessage);
@@ -136,8 +156,8 @@ public class PaymentSessionService(
             logger.LogError(ex, "Error inesperado al procesar sesión {Token}", token);
             session.Status = PaymentSessionStatus.Failed;
             session.ErrorMessage = "Error interno al procesar el pago.";
-            session.CompletedAt = DateTime.UtcNow;
-            session.UpdatedAt = DateTime.UtcNow;
+            session.CompletedAt = CrDateTime.Now;
+            session.UpdatedAt = CrDateTime.Now;
             await db.SaveChangesAsync();
             _ = callbackService.NotifyAsync(session);
             return Fail(session.ErrorMessage);
@@ -147,11 +167,7 @@ public class PaymentSessionService(
     private async Task<SimOnvoPay.Models.PaymentMethods.PaymentMethod> CreatePaymentMethodAsync(
         ProcessPaymentRequest request, string customerId)
     {
-        var pmRequest = new CreatePaymentMethodRequest
-        {
-            Customer = customerId,
-            BillingDetails = new BillingDetails { Name = request.CustomerName, Email = request.CustomerEmail, Phone = request.CustomerPhone }
-        };
+        var pmRequest = new CreatePaymentMethodRequest();
 
         switch (request.PaymentMethod)
         {
@@ -162,7 +178,8 @@ public class PaymentSessionService(
                     Number = request.Card!.Number.Replace(" ", ""),
                     ExpMonth = request.Card.ExpMonth,
                     ExpYear = request.Card.ExpYear,
-                    Cvc = request.Card.Cvc
+                    HolderName = request.CustomerName,
+                    Cvv = request.Card.Cvc
                 };
                 break;
 
@@ -179,7 +196,9 @@ public class PaymentSessionService(
                 pmRequest.Type = "mobile_number";
                 pmRequest.MobileNumber = new CreateMobileNumberDetails
                 {
-                    Phone = request.SinpeMovil!.Phone
+                    Number = request.SinpeMovil!.Phone,
+                    IdentificationType = request.SinpeMovil.IdentificationType,
+                    Identification = request.SinpeMovil.Identification
                 };
                 break;
 
@@ -197,8 +216,8 @@ public class PaymentSessionService(
         {
             case "succeeded":
                 session.Status = PaymentSessionStatus.Succeeded;
-                session.CompletedAt = DateTime.UtcNow;
-                session.UpdatedAt = DateTime.UtcNow;
+                session.CompletedAt = CrDateTime.Now;
+                session.UpdatedAt = CrDateTime.Now;
                 await db.SaveChangesAsync();
                 _ = callbackService.NotifyAsync(session);
                 return new ProcessPaymentResponse { Status = "succeeded", Message = "Pago procesado exitosamente.", PaymentIntentId = session.OnvoPaymentIntentId };
@@ -207,7 +226,7 @@ public class PaymentSessionService(
             case "pending":
             case "requires_payment_method":
                 session.Status = PaymentSessionStatus.Pending;
-                session.UpdatedAt = DateTime.UtcNow;
+                session.UpdatedAt = CrDateTime.Now;
                 await db.SaveChangesAsync();
                 return new ProcessPaymentResponse
                 {
@@ -220,7 +239,7 @@ public class PaymentSessionService(
 
             case "requires_action":
                 session.Status = PaymentSessionStatus.Processing;
-                session.UpdatedAt = DateTime.UtcNow;
+                session.UpdatedAt = CrDateTime.Now;
                 await db.SaveChangesAsync();
                 return new ProcessPaymentResponse
                 {
@@ -233,8 +252,8 @@ public class PaymentSessionService(
             default:
                 session.Status = PaymentSessionStatus.Failed;
                 session.ErrorMessage = $"Estado de pago no esperado: {intentStatus}";
-                session.CompletedAt = DateTime.UtcNow;
-                session.UpdatedAt = DateTime.UtcNow;
+                session.CompletedAt = CrDateTime.Now;
+                session.UpdatedAt = CrDateTime.Now;
                 await db.SaveChangesAsync();
                 _ = callbackService.NotifyAsync(session);
                 return Fail(session.ErrorMessage);
@@ -250,8 +269,8 @@ public class PaymentSessionService(
             return false;
 
         session.Status = PaymentSessionStatus.Cancelled;
-        session.CompletedAt = DateTime.UtcNow;
-        session.UpdatedAt = DateTime.UtcNow;
+        session.CompletedAt = CrDateTime.Now;
+        session.UpdatedAt = CrDateTime.Now;
         await db.SaveChangesAsync();
 
         _ = callbackService.NotifyAsync(session);
@@ -262,6 +281,24 @@ public class PaymentSessionService(
     {
         var session = await db.PaymentSessions.FirstOrDefaultAsync(s => s.Token == token);
         if (session is null) return null;
+
+        // If still in-flight, query OnvoPay for the current status (throttled to once per 10s per token)
+        var cacheKey = $"onvo_check_{token}";
+        if (session.OnvoPaymentIntentId is not null &&
+            session.Status is PaymentSessionStatus.Processing or PaymentSessionStatus.Pending &&
+            !cache.TryGetValue(cacheKey, out _))
+        {
+            cache.Set(cacheKey, true, TimeSpan.FromSeconds(10));
+            try
+            {
+                var intent = await onvo.PaymentIntents.GetAsync(session.OnvoPaymentIntentId);
+                await HandleIntentStatusAsync(session, intent.Status, null);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "No se pudo consultar el estado del intent {Id}", session.OnvoPaymentIntentId);
+            }
+        }
 
         return new SessionStatusResponse
         {
@@ -292,14 +329,14 @@ public class PaymentSessionService(
             case "payment-intent.succeeded":
                 if (session.Status == PaymentSessionStatus.Succeeded) return;
                 session.Status = PaymentSessionStatus.Succeeded;
-                session.CompletedAt = DateTime.UtcNow;
+                session.CompletedAt = CrDateTime.Now;
                 break;
 
             case "payment-intent.failed":
                 if (session.Status == PaymentSessionStatus.Failed) return;
                 session.Status = PaymentSessionStatus.Failed;
                 session.ErrorMessage = "El pago fue rechazado por la entidad bancaria.";
-                session.CompletedAt = DateTime.UtcNow;
+                session.CompletedAt = CrDateTime.Now;
                 break;
 
             default:
@@ -307,7 +344,7 @@ public class PaymentSessionService(
                 return;
         }
 
-        session.UpdatedAt = DateTime.UtcNow;
+        session.UpdatedAt = CrDateTime.Now;
         await db.SaveChangesAsync();
 
         await callbackService.NotifyAsync(session);
@@ -321,6 +358,21 @@ public class PaymentSessionService(
         foreach (var b in bytes)
             sb.Append(chars[b % chars.Length]);
         return sb.ToString();
+    }
+
+    private static string? ExtractRedirectUrl(System.Text.Json.JsonElement? nextAction)
+    {
+        if (nextAction is not { } el) return null;
+        // Try common OnvoPay field paths for the redirect URL
+        foreach (var key in new[] { "redirectUrl", "url" })
+            if (el.TryGetProperty(key, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String)
+                return v.GetString();
+        // nested: redirectToUrl.url
+        if (el.TryGetProperty("redirectToUrl", out var nested) &&
+            nested.TryGetProperty("url", out var nestedUrl) &&
+            nestedUrl.ValueKind == System.Text.Json.JsonValueKind.String)
+            return nestedUrl.GetString();
+        return null;
     }
 
     private static ProcessPaymentResponse Fail(string message) =>

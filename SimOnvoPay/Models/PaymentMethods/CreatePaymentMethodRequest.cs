@@ -11,10 +11,7 @@ public class CreatePaymentMethodRequest
     public string Type { get; set; } = string.Empty;
 
     [JsonPropertyName("customer")]
-    public string? Customer { get; set; }
-
-    [JsonPropertyName("billingDetails")]
-    public BillingDetails? BillingDetails { get; set; }
+    public CustomerReference? Customer { get; set; }
 
     [JsonPropertyName("card")]
     public CreateCardDetails? Card { get; set; }
@@ -29,6 +26,12 @@ public class CreatePaymentMethodRequest
     public Dictionary<string, string>? Metadata { get; set; }
 }
 
+public class CustomerReference
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+}
+
 public class CreateCardDetails
 {
     [JsonPropertyName("number")]
@@ -40,8 +43,11 @@ public class CreateCardDetails
     [JsonPropertyName("expYear")]
     public int ExpYear { get; set; }
 
-    [JsonPropertyName("cvc")]
-    public string Cvc { get; set; } = string.Empty;
+    [JsonPropertyName("holderName")]
+    public string HolderName { get; set; } = string.Empty;
+
+    [JsonPropertyName("cvv")]
+    public string Cvv { get; set; } = string.Empty;
 }
 
 public class CreateBankAccountDetails
@@ -58,6 +64,14 @@ public class CreateBankAccountDetails
 
 public class CreateMobileNumberDetails
 {
-    [JsonPropertyName("phone")]
-    public string Phone { get; set; } = string.Empty;
+    /// <summary>Phone number without country code, e.g. "88887777"</summary>
+    [JsonPropertyName("number")]
+    public string Number { get; set; } = string.Empty;
+
+    /// <summary>0=Cédula, 1=DIMEX, 2=DIDI, 3=Pasaporte, 4=Otro, 5=Jurídica, 9=NITE</summary>
+    [JsonPropertyName("identificationType")]
+    public int IdentificationType { get; set; }
+
+    [JsonPropertyName("identification")]
+    public string Identification { get; set; } = string.Empty;
 }

@@ -52,4 +52,10 @@ public class SinpeMovilPaymentDetails
 {
     [Required]
     public string Phone { get; set; } = string.Empty;
+
+    /// <summary>0=Cédula, 1=DIMEX, 2=DIDI, 3=Pasaporte, 4=Otro, 5=Jurídica, 9=NITE</summary>
+    public int IdentificationType { get; set; }
+
+    [Required]
+    public string Identification { get; set; } = string.Empty;
 }

@@ -5,6 +5,7 @@ export interface CheckoutInfo {
   description: string;
   status: string;
   expiresAt: string;
+  metadata?: { [key: string]: string };
 }
 
 export interface ProcessPaymentRequest {
@@ -24,6 +25,8 @@ export interface ProcessPaymentRequest {
   };
   sinpeMovil?: {
     phone: string;
+    identificationType: number;
+    identification: string;
   };
 }
 

@@ -159,6 +159,23 @@
                 <mat-error *ngIf="sinpeMovilForm.get('phone')?.hasError('required')">Teléfono requerido</mat-error>
                 <mat-error *ngIf="sinpeMovilForm.get('phone')?.hasError('pattern')">Formato: +506XXXXXXXX</mat-error>
               </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Tipo de identificación</mat-label>
+                <mat-select formControlName="identificationType">
+                  <mat-option [value]="0">Cédula Nacional</mat-option>
+                  <mat-option [value]="1">DIMEX</mat-option>
+                  <mat-option [value]="2">DIDI</mat-option>
+                  <mat-option [value]="3">Pasaporte</mat-option>
+                  <mat-option [value]="4">Otro</mat-option>
+                  <mat-option [value]="5">Cédula Jurídica</mat-option>
+                  <mat-option [value]="9">NITE</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Número de identificación</mat-label>
+                <input matInput formControlName="identification" placeholder="123456789" />
+                <mat-error *ngIf="sinpeMovilForm.get('identification')?.hasError('required')">Identificación requerida</mat-error>
+              </mat-form-field>
             </form>
           </div>
         </mat-tab>
@@ -183,15 +200,14 @@
     <p>Por favor no cierre esta ventana.</p>
   </div>
 
-  <!-- Pending State (SINPE Móvil) -->
+  <!-- Pending State (SINPE) -->
   <div *ngIf="paymentState === 'pending'" class="state-center pending-state">
     <div class="pulse-icon">
-      <mat-icon>smartphone</mat-icon>
+      <mat-icon>check_circle</mat-icon>
     </div>
-    <h2>Esperando confirmación</h2>
+    <h2>Solicitud enviada</h2>
     <p>{{ pendingMessage }}</p>
-    <p class="hint">Apruebe el pago en su teléfono. Esta página se actualizará automáticamente.</p>
-    <mat-spinner diameter="32" strokeWidth="3"></mat-spinner>
+    <p class="hint">Puede cerrar esta ventana. Su reservación quedará guardada y se actualizará cuando el pago sea confirmado.</p>
   </div>
 
   <!-- Error State -->

@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -72,7 +72,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.customerForm = this.fb.group({
       customerName: ['', [Validators.required, Validators.minLength(3)]],
       customerEmail: ['', [Validators.required, Validators.email]],
-      customerPhone: ['', [Validators.required, Validators.pattern(/^\+506\d{8}$/)]]
+      customerPhone: ['', [Validators.required, Validators.pattern(/^(\+506)?\d{8}$/)]]
     });
 
     this.cardForm = this.fb.group({
@@ -88,7 +88,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     });
 
     this.sinpeMovilForm = this.fb.group({
-      phone: ['', [Validators.required, Validators.pattern(/^\+506\d{8}$/)]]
+      phone: ['', [Validators.required, Validators.pattern(/^(\+506)?\d{8}$/)]],
+      identificationType: [0, Validators.required],
+      identification: ['', [Validators.required, Validators.minLength(1)]]
     });
   }
 
@@ -101,6 +103,13 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           this.router.navigate(['/success'], { queryParams: { token: this.token } });
         } else if (info.status === 'cancelled') {
           this.router.navigate(['/cancelled']);
+        }
+        if (info.metadata) {
+          this.customerForm.patchValue({
+            customerName: info.metadata['customerName'] ?? '',
+            customerEmail: info.metadata['customerEmail'] ?? '',
+            customerPhone: info.metadata['customerPhone'] ?? ''
+          });
         }
       },
       error: () => {
@@ -142,10 +151,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.paymentState = 'processing';
 
     const customer = this.customerForm.value;
+    const normalizePhone = (phone: string) =>
+      phone?.startsWith('+506') ? phone : '+506' + phone;
     const request: ProcessPaymentRequest = {
       customerName: customer.customerName,
       customerEmail: customer.customerEmail,
-      customerPhone: customer.customerPhone,
+      customerPhone: normalizePhone(customer.customerPhone),
       paymentMethod: this.activePaymentMethod
     };
 
@@ -160,18 +171,29 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     } else if (this.activePaymentMethod === 'sinpe') {
       request.sinpe = this.sinpeForm.value;
     } else {
-      request.sinpeMovil = this.sinpeMovilForm.value;
+      const movil = this.sinpeMovilForm.value;
+      request.sinpeMovil = {
+        phone: normalizePhone(movil.phone),
+        identificationType: Number(movil.identificationType),
+        identification: movil.identification
+      };
     }
 
     this.paymentService.processPayment(this.token, request).subscribe({
       next: (result) => {
         this.processing = false;
         if (result.status === 'succeeded') {
+          window.parent?.postMessage({ type: 'payment_succeeded', token: this.token }, '*');
           this.router.navigate(['/success'], { queryParams: { token: this.token } });
         } else if (result.status === 'pending') {
           this.paymentState = 'pending';
           this.pendingMessage = result.message;
-          this.startPolling();
+          const isSinpe = this.activePaymentMethod === 'sinpe' || this.activePaymentMethod === 'sinpe_movil';
+          if (isSinpe) {
+            window.parent?.postMessage({ type: 'sinpe_submitted', token: this.token }, '*');
+          } else {
+            this.startPolling();
+          }
         } else if (result.status === 'requires_action' && result.redirectUrl) {
           window.location.href = result.redirectUrl;
         } else {

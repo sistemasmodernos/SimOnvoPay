@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using SimOnvoPay.Api.DTOs;
+using SimOnvoPay.Api.Helpers;
 using SimOnvoPay.Api.Models;
 
 namespace SimOnvoPay.Api.Services;
@@ -24,7 +25,7 @@ public class CallbackService(HttpClient httpClient, ILogger<CallbackService> log
             PaymentIntentId = session.OnvoPaymentIntentId,
             PaymentMethodType = session.PaymentMethodType,
             ErrorMessage = session.ErrorMessage,
-            CompletedAt = session.CompletedAt ?? DateTime.UtcNow,
+            CompletedAt = session.CompletedAt ?? CrDateTime.Now,
             Metadata = DeserializeMetadata(session.MetadataJson)
         };
 

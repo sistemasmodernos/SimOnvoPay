@@ -8,4 +8,5 @@ public class CheckoutInfoResponse
     public string Description { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
+    public Dictionary<string, string>? Metadata { get; set; }
 }

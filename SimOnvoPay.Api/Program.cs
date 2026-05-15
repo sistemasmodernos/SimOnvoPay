@@ -29,10 +29,16 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 );
 
 // Servicios de negocio
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IPaymentSessionService, PaymentSessionService>();
 builder.Services.AddHttpClient<ICallbackService, CallbackService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(15);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = builder.Environment.IsDevelopment()
+        ? HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        : null
 });
 
 // CORS: permitir el frontend Angular
@@ -63,6 +69,15 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("FrontendPolicy");
+
+// Permitir embeber el checkout en iframe desde Reservamecr
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.Headers["X-Frame-Options"] = "ALLOWALL";
+    ctx.Response.Headers["Content-Security-Policy"] = "frame-ancestors *";
+    await next();
+});
+
 app.UseMiddleware<ApiKeyMiddleware>();
 app.MapControllers();
 

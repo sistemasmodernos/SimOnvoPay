@@ -1,3 +1,5 @@
+using SimOnvoPay.Api.Helpers;
+
 namespace SimOnvoPay.Api.Models;
 
 public class PaymentSession
@@ -18,8 +20,8 @@ public class PaymentSession
     public string? MetadataJson { get; set; }
     public string? PaymentMethodType { get; set; }
     public string? ErrorMessage { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime ExpiresAt { get; set; } = DateTime.UtcNow.AddHours(1);
+    public DateTime CreatedAt { get; set; } = CrDateTime.Now;
+    public DateTime ExpiresAt { get; set; } = CrDateTime.Now.AddMinutes(30);
     public DateTime? CompletedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
